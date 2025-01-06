@@ -1,20 +1,19 @@
 package app.shashi.AdminTalk.adapters;
 
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.method.LinkMovementMethod;
+import android.text.util.Linkify;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
+import androidx.core.text.util.LinkifyCompat;
 import androidx.recyclerview.widget.RecyclerView;
-
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.Message;
-
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageViewHolder> {
     private static final int VIEW_TYPE_SENT = 1;
@@ -22,12 +21,16 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
     private final List<Message> messageList;
     private final String currentUserId;
-    private final SimpleDateFormat dateFormat;
+    private final TimestampFormatter timestampFormatter;
 
-    public MessageAdapter(List<Message> messageList, String currentUserId) {
+    public interface TimestampFormatter {
+        String formatTimestamp(long timestamp);
+    }
+
+    public MessageAdapter(List<Message> messageList, String currentUserId, TimestampFormatter timestampFormatter) {
         this.messageList = messageList;
         this.currentUserId = currentUserId;
-        this.dateFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
+        this.timestampFormatter = timestampFormatter;
     }
 
     @NonNull
@@ -47,8 +50,19 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     @Override
     public void onBindViewHolder(@NonNull MessageViewHolder holder, int position) {
         Message message = messageList.get(position);
-        holder.messageText.setText(message.getText());
-        holder.timeText.setText(dateFormat.format(new Date(message.getTimestamp())));
+
+        
+        SpannableString messageText = new SpannableString(message.getText());
+
+        
+        LinkifyCompat.addLinks(messageText, Linkify.ALL);
+
+        
+        holder.messageText.setText(messageText);
+        holder.messageText.setMovementMethod(LinkMovementMethod.getInstance());
+        holder.messageText.setLinkTextColor(holder.itemView.getContext().getColor(R.color.link_color));
+
+        holder.timeText.setText(timestampFormatter.formatTimestamp(message.getTimestamp()));
 
         if (getItemViewType(position) == VIEW_TYPE_RECEIVED) {
             holder.nameText.setText(message.getSenderName());
@@ -63,10 +77,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     @Override
     public int getItemViewType(int position) {
         Message message = messageList.get(position);
-        if (message.getSenderId().equals(currentUserId)) {
-            return VIEW_TYPE_SENT;
-        }
-        return VIEW_TYPE_RECEIVED;
+        return message.getSenderId().equals(currentUserId) ? VIEW_TYPE_SENT : VIEW_TYPE_RECEIVED;
     }
 
     static class MessageViewHolder extends RecyclerView.ViewHolder {
@@ -79,6 +90,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             messageText = itemView.findViewById(R.id.text_message);
             timeText = itemView.findViewById(R.id.text_time);
             nameText = itemView.findViewById(R.id.text_name);
+
+            
+            messageText.setTextIsSelectable(true);
         }
     }
 }

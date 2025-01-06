@@ -1,4 +1,5 @@
 <resources>
+    <color name="link_color">@color/material_dynamic_primary60</color>
     <color name="md_theme_primary">#005193</color>
     <color name="md_theme_onPrimary">#FFFFFF</color>
     <color name="md_theme_primaryContainer">#2976C7</color>

@@ -47,6 +47,8 @@
         android:id="@+id/recycler_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:autoLink="web|phone|email"
+        android:linksClickable="true"
         android:clipToPadding="false"
         android:paddingHorizontal="@dimen/spacing_small"
         android:paddingTop="@dimen/spacing_small"
