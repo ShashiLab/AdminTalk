@@ -2,64 +2,63 @@ package app.shashi.AdminTalk.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.MenuItem;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import android.widget.Toast;
-
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.divider.MaterialDividerItemDecoration;
+import com.google.firebase.database.*;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.adapters.UserAdapter;
 import app.shashi.AdminTalk.models.User;
 import app.shashi.AdminTalk.utils.Constants;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class UserListActivity extends AppCompatActivity implements UserAdapter.OnUserClickListener {
     private RecyclerView recyclerView;
     private UserAdapter userAdapter;
     private List<User> userList;
-    private Toolbar toolbar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_list);
-
+        userList = new ArrayList<>();
         initializeViews();
-        setupToolbar();
+        setupRecyclerView();
         loadUsers();
     }
 
     private void initializeViews() {
-        toolbar = findViewById(R.id.toolbar);
-        recyclerView = findViewById(R.id.recycler_view);
-
-        userList = new ArrayList<>();
-        userAdapter = new UserAdapter(userList, this);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.setAdapter(userAdapter);
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
     }
 
-    private void setupToolbar() {
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Chats");
-        }
+    private void setupRecyclerView() {
+        recyclerView = findViewById(R.id.recycler_view);
+        userAdapter = new UserAdapter(userList, this);
+
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        recyclerView.setLayoutManager(layoutManager);
+        recyclerView.setAdapter(userAdapter);
+
+        MaterialDividerItemDecoration divider = new MaterialDividerItemDecoration(
+                this,
+                LinearLayoutManager.VERTICAL
+        );
+        divider.setLastItemDecorated(false);
+        recyclerView.addItemDecoration(divider);
     }
 
     private void loadUsers() {
         FirebaseDatabase.getInstance().getReference(Constants.USERS_REF)
                 .addValueEventListener(new ValueEventListener() {
                     @Override
-                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                    public void onDataChange(DataSnapshot snapshot) {
                         userList.clear();
                         for (DataSnapshot userSnapshot : snapshot.getChildren()) {
                             User user = userSnapshot.getValue(User.class);
@@ -67,12 +66,20 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                                 userList.add(user);
                             }
                         }
+
+                        Collections.sort(userList, new Comparator<User>() {
+                            @Override
+                            public int compare(User user1, User user2) {
+                                return user1.getName().compareTo(user2.getName());
+                            }
+                        });
+
                         userAdapter.notifyDataSetChanged();
                     }
 
                     @Override
-                    public void onCancelled(@NonNull DatabaseError error) {
-                        Toast.makeText(UserListActivity.this, "Failed to load users", Toast.LENGTH_SHORT).show();
+                    public void onCancelled(DatabaseError error) {
+                        
                     }
                 });
     }
@@ -85,4 +92,3 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         startActivity(intent);
     }
 }
-

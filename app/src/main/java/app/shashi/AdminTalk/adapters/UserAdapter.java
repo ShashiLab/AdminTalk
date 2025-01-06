@@ -6,9 +6,11 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.imageview.ShapeableImageView;
+import com.bumptech.glide.Glide;
+import java.util.List;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
-import java.util.List;
 
 public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder> {
     private final List<User> userList;
@@ -33,8 +35,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull UserViewHolder holder, int position) {
-        User user = userList.get(position);
-        holder.bind(user, listener);
+        holder.bind(userList.get(position), listener);
     }
 
     @Override
@@ -42,20 +43,36 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         return userList.size();
     }
 
-    static class UserViewHolder extends RecyclerView.ViewHolder {
-        TextView nameText;
-        TextView emailText;
+    public static class UserViewHolder extends RecyclerView.ViewHolder {
+        private final ShapeableImageView profileImage;
+        private final TextView nameText;
+        private final TextView emailText;
 
-        UserViewHolder(View itemView) {
+        public UserViewHolder(@NonNull View itemView) {
             super(itemView);
+            profileImage = itemView.findViewById(R.id.image_profile);
             nameText = itemView.findViewById(R.id.text_name);
             emailText = itemView.findViewById(R.id.text_email);
         }
 
-        void bind(final User user, final OnUserClickListener listener) {
+        public void bind(final User user, final OnUserClickListener listener) {
             nameText.setText(user.getName());
             emailText.setText(user.getEmail());
-            itemView.setOnClickListener(v -> listener.onUserClick(user));
+
+            
+            Glide.with(itemView.getContext())
+                    .load(user.getPhotoUrl())
+                    .placeholder(R.drawable.ic_profile_placeholder)
+                    .error(R.drawable.ic_profile_placeholder)
+                    .circleCrop()
+                    .into(profileImage);
+
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    listener.onUserClick(user);
+                }
+            });
         }
     }
 }
