@@ -1,15 +1,16 @@
 package app.shashi.AdminTalk.activities;
 
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
-
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
+import app.shashi.AdminTalk.services.MessageNotificationService;
+import app.shashi.AdminTalk.utils.PermissionHelper;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -37,9 +38,12 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.activity_login);
 
         
+        if (!PermissionHelper.hasNotificationPermission(this)) {
+            PermissionHelper.requestNotificationPermission(this);
+        }
+
         mAuth = FirebaseAuth.getInstance();
 
-        
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
@@ -47,17 +51,32 @@ public class LoginActivity extends AppCompatActivity {
 
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        
         signInButton = findViewById(R.id.sign_in_button);
         signInButton.setOnClickListener(v -> signIn());
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == PermissionHelper.NOTIFICATION_PERMISSION_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                
+            } else {
+                
+                Toast.makeText(this,
+                        "Notifications are required to receive new message alerts",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
-        
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
+            startNotificationService(); 
             startChatActivity();
         }
     }
@@ -87,10 +106,10 @@ public class LoginActivity extends AppCompatActivity {
         mAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
-                        
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
                             saveUserToDatabase(user);
+                            startNotificationService(); 
                         }
                         startChatActivity();
                     } else {
@@ -108,6 +127,11 @@ public class LoginActivity extends AppCompatActivity {
                 user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : null
         );
         usersRef.child(user.getUid()).setValue(userProfile);
+    }
+
+    private void startNotificationService() {
+        Intent serviceIntent = new Intent(this, MessageNotificationService.class);
+        startService(serviceIntent);
     }
 
     private void startChatActivity() {
