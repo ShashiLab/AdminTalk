@@ -10,6 +10,9 @@ import java.util.Objects;
 public class FirebaseHelper {
     private static DatabaseReference database = FirebaseDatabase.getInstance().getReference();
 
+    public static DatabaseReference getUserPresenceReference(String userId) {
+        return FirebaseDatabase.getInstance().getReference("presence").child(userId);
+    }
     public static String getCurrentUserUid() {
         return Objects.requireNonNull(FirebaseAuth.getInstance().getCurrentUser()).getUid();
     }

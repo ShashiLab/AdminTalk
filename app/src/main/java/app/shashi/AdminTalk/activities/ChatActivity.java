@@ -14,17 +14,9 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.database.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.TimeZone;
+import java.util.*;
 
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.adapters.MessageAdapter;
@@ -39,9 +31,13 @@ public class ChatActivity extends AppCompatActivity {
     private TextInputEditText messageInput;
     private MaterialButton sendButton;
     private TextView chatTitle;
+    private TextView userStatusView;
     private String lastChatUserId;
     private boolean isAdmin;
     private ValueEventListener messagesListener;
+    private ValueEventListener statusListener;
+    private DatabaseReference userPresenceRef;
+    private String selectedUserId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,15 +50,15 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
-        String selectedUserId = getIntent().getStringExtra(Constants.EXTRA_USER_ID);
+        selectedUserId = getIntent().getStringExtra(Constants.EXTRA_USER_ID);
         String selectedUserName = getIntent().getStringExtra(Constants.EXTRA_USER_NAME);
+        lastChatUserId = selectedUserId;
 
         initializeViews(currentUser.getUid(), selectedUserName);
         initializeChat(currentUser.getUid(), selectedUserId);
     }
 
     private void initializeViews(String currentUserId, String selectedUserName) {
-        
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
@@ -73,7 +69,9 @@ public class ChatActivity extends AppCompatActivity {
         chatTitle = findViewById(R.id.chat_title);
         chatTitle.setText(selectedUserName != null ? selectedUserName : "Chat");
 
-        
+        userStatusView = findViewById(R.id.user_status);
+        userStatusView.setText("Offline");
+
         recyclerView = findViewById(R.id.recycler_view);
         messageList = new ArrayList<>();
         messageAdapter = new MessageAdapter(messageList, currentUserId, this::formatTimestamp);
@@ -84,12 +82,10 @@ public class ChatActivity extends AppCompatActivity {
         recyclerView.setAdapter(messageAdapter);
         recyclerView.setItemAnimator(null);
 
-        
         messageInput = findViewById(R.id.message_input);
         messageInput.setLinkTextColor(getColor(R.color.link_color));
         messageInput.setAutoLinkMask(Linkify.WEB_URLS | Linkify.EMAIL_ADDRESSES | Linkify.PHONE_NUMBERS);
 
-        
         sendButton = findViewById(R.id.send_button);
         sendButton.setOnClickListener(v -> sendMessage());
     }
@@ -101,7 +97,45 @@ public class ChatActivity extends AppCompatActivity {
         if (chatUserId != null) {
             messagesListener = createMessageListener();
             FirebaseHelper.getUserChats(chatUserId).addValueEventListener(messagesListener);
+
+            setupPresence(currentUserId, isAdmin ? selectedUserId : Constants.ADMIN_UID);
         }
+    }
+
+    private void setupPresence(String currentUserId, String otherUserId) {
+        DatabaseReference presenceRef = FirebaseDatabase.getInstance().getReference(".info/connected");
+        userPresenceRef = FirebaseHelper.getUserPresenceReference(currentUserId);
+
+        presenceRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Boolean connected = snapshot.getValue(Boolean.class);
+                if (connected != null && connected) {
+                    userPresenceRef.onDisconnect().setValue(false);
+                    userPresenceRef.setValue(true);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(ChatActivity.this, "Failed to setup presence", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        DatabaseReference otherUserPresenceRef = FirebaseHelper.getUserPresenceReference(otherUserId);
+        statusListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Boolean isOnline = snapshot.getValue(Boolean.class);
+                updateUserStatus(isOnline != null && isOnline);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                updateUserStatus(false);
+            }
+        };
+        otherUserPresenceRef.addValueEventListener(statusListener);
     }
 
     private ValueEventListener createMessageListener() {
@@ -129,6 +163,13 @@ public class ChatActivity extends AppCompatActivity {
                 Toast.makeText(ChatActivity.this, "Failed to load messages", Toast.LENGTH_SHORT).show();
             }
         };
+    }
+
+    private void updateUserStatus(boolean isOnline) {
+        runOnUiThread(() -> {
+            userStatusView.setText(isOnline ? "Online" : "Offline");
+            userStatusView.setTextColor(getColor(isOnline ? R.color.online_color : R.color.offline_color));
+        });
     }
 
     private String formatTimestamp(long timestamp) {
@@ -206,12 +247,35 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (userPresenceRef != null) {
+            userPresenceRef.setValue(true);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (userPresenceRef != null) {
+            userPresenceRef.setValue(false);
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (statusListener != null && selectedUserId != null) {
+            FirebaseHelper.getUserPresenceReference(selectedUserId)
+                    .removeEventListener(statusListener);
+        }
         if (messagesListener != null) {
             FirebaseHelper.getUserChats(isAdmin ? lastChatUserId :
                             FirebaseAuth.getInstance().getCurrentUser().getUid())
                     .removeEventListener(messagesListener);
+        }
+        if (userPresenceRef != null) {
+            userPresenceRef.setValue(false);
         }
     }
 }
