@@ -19,6 +19,8 @@ import app.shashi.AdminTalk.adapters.MessageAdapter;
 import app.shashi.AdminTalk.models.Message;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
+
+import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.ChildEventListener;
@@ -37,14 +39,14 @@ public class ChatActivity extends AppCompatActivity {
     private MessageAdapter messageAdapter;
     private List<Message> messageList;
     private EditText messageInput;
-    private ImageButton sendButton;
+    private MaterialButton sendButton;
     private TextView chatTitle;
     private Toolbar toolbar;
 
     private FirebaseUser currentUser;
     private DatabaseReference chatRef;
     private boolean isAdmin;
-    private String lastChatUserId; 
+    private String lastChatUserId;
     private ValueEventListener messagesListener;
 
     private String selectedUserId;
@@ -61,7 +63,7 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
-        
+
         selectedUserId = getIntent().getStringExtra(Constants.EXTRA_USER_ID);
         selectedUserName = getIntent().getStringExtra(Constants.EXTRA_USER_NAME);
 
@@ -78,13 +80,13 @@ public class ChatActivity extends AppCompatActivity {
         messageInput = findViewById(R.id.message_input);
         sendButton = findViewById(R.id.send_button);
 
-        
+
         messageList = new ArrayList<>();
         messageAdapter = new MessageAdapter(messageList, currentUser.getUid());
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(messageAdapter);
 
-        
+
         sendButton.setOnClickListener(v -> sendMessage());
     }
 
@@ -101,11 +103,11 @@ public class ChatActivity extends AppCompatActivity {
         isAdmin = FirebaseHelper.isAdmin();
 
         if (isAdmin && selectedUserId != null) {
-            
+
             chatRef = FirebaseHelper.getChatReference(selectedUserId);
             listenToUserMessages(selectedUserId);
         } else if (!isAdmin) {
-            
+
             String currentUserUid = FirebaseHelper.getCurrentUserUid();
             chatRef = FirebaseHelper.getChatReference(currentUserUid);
             listenToUserMessages(currentUserUid);
@@ -118,10 +120,10 @@ public class ChatActivity extends AppCompatActivity {
                 for (DataSnapshot messageSnapshot : snapshot.getChildren()) {
                     Message message = messageSnapshot.getValue(Message.class);
                     if (message != null) {
-                        
+
                         if (!messageExists(message)) {
                             messageList.add(message);
-                            lastChatUserId = userId; 
+                            lastChatUserId = userId;
                             sortMessages();
                             messageAdapter.notifyDataSetChanged();
                             recyclerView.scrollToPosition(messageList.size() - 1);
@@ -200,7 +202,7 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        
+
         if (messagesListener != null && chatRef != null) {
             chatRef.removeEventListener(messagesListener);
         }

@@ -1,7 +1,7 @@
 package app.shashi.AdminTalk.utils;
 
 public class Constants {
-    public static final String ADMIN_UID = "7tFdWukCE3ML90te4WVbXr1puvD3";
+    public static final String ADMIN_UID = "LrJs55uMQ2c3Sedwfq2cQEizqQD3";
     public static final String CHATS_REF = "chats";
     public static final String USERS_REF = "users";
     public static final String MESSAGES_REF = "messages";
