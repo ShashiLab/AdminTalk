@@ -4,6 +4,7 @@ appcompatVersion = "1.7.0"
 compiler = "4.16.0"
 constraintlayoutVersion = "2.2.0"
 firebaseBom = "33.7.0"
+firebaseConfig = "22.0.1"
 gradle = "8.1.4"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -24,6 +25,7 @@ constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout",
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-config = { module = "com.google.firebase:firebase-config", version.ref = "firebaseConfig" }
 firebase-database = { module = "com.google.firebase:firebase-database" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "compiler" }
 gradle = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
