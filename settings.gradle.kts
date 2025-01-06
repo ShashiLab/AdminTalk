@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Admin Talk"
+rootProject.name = "AdminTalk"
 include(":app")

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="#4A90E2"/>
+  
+  <!-- Stylized A + Chat bubble combination -->
+  <path d="
+    M 75 65
+    L 100 45
+    L 125 65
+    L 125 95
+    L 115 95
+    L 100 110
+    L 85 95
+    L 75 95
+    Z" 
+    fill="white"
+    stroke="white"
+    stroke-width="2"/>
+    
+  <!-- Bottom chat tail -->
+  <path d="
+    M 100 110
+    L 85 125
+    L 100 118"
+    fill="white"
+    stroke="white"
+    stroke-width="2"/>
+    
+  <!-- Horizontal bar of 'A' -->
+  <rect x="88" y="75" width="24" height="8" fill="#4A90E2"/>
+  
+  <!-- Small dots representing chat/connection -->
+  <circle cx="100" cy="140" r="6" fill="white"/>
+  <circle cx="80" cy="140" r="6" fill="white"/>
+  <circle cx="120" cy="140" r="6" fill="white"/>
+</svg>

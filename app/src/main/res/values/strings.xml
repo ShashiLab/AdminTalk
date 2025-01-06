@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Admin Talk</string>
+    <string name="app_name">AdminTalk</string>
     <string name="hint_type_message" />
 </resources>
