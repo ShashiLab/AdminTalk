@@ -38,18 +38,10 @@ public class MessageNotificationService extends Service {
     }
 
     private Notification createForegroundNotification() {
-        Intent notificationIntent = new Intent(this, ChatActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, notificationIntent,
-                PendingIntent.FLAG_IMMUTABLE
-        );
-
         return new NotificationCompat.Builder(this, NotificationHelper.CHANNEL_ID)
-                .setContentTitle("AdminTalk")
-                .setContentText("Listening for new messages")
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setNotificationSilent()
                 .build();
     }
 
