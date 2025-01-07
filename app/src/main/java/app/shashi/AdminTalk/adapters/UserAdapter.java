@@ -9,19 +9,22 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.bumptech.glide.Glide;
 import java.util.List;
+import java.util.Map;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
 
 public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder> {
     private final List<User> userList;
+    private final Map<String, Boolean> presenceMap;
     private final OnUserClickListener listener;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
     }
 
-    public UserAdapter(List<User> userList, OnUserClickListener listener) {
+    public UserAdapter(List<User> userList, Map<String, Boolean> presenceMap, OnUserClickListener listener) {
         this.userList = userList;
+        this.presenceMap = presenceMap;
         this.listener = listener;
     }
 
@@ -35,7 +38,9 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull UserViewHolder holder, int position) {
-        holder.bind(userList.get(position), listener);
+        User user = userList.get(position);
+        Boolean isOnline = presenceMap.get(user.getId());
+        holder.bind(user, isOnline != null && isOnline, listener);
     }
 
     @Override
@@ -47,19 +52,24 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         private final ShapeableImageView profileImage;
         private final TextView nameText;
         private final TextView emailText;
+        private final View statusIndicator;
 
         public UserViewHolder(@NonNull View itemView) {
             super(itemView);
             profileImage = itemView.findViewById(R.id.image_profile);
             nameText = itemView.findViewById(R.id.text_name);
             emailText = itemView.findViewById(R.id.text_email);
+            statusIndicator = itemView.findViewById(R.id.status_indicator);
         }
 
-        public void bind(final User user, final OnUserClickListener listener) {
+        public void bind(final User user, boolean isOnline, final OnUserClickListener listener) {
             nameText.setText(user.getName());
             emailText.setText(user.getEmail());
 
-            
+            statusIndicator.setBackgroundResource(
+                    isOnline ? R.drawable.status_online : R.drawable.status_offline
+            );
+
             Glide.with(itemView.getContext())
                     .load(user.getPhotoUrl())
                     .placeholder(R.drawable.ic_profile_placeholder)
@@ -67,12 +77,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
                     .circleCrop()
                     .into(profileImage);
 
-            itemView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    listener.onUserClick(user);
-                }
-            });
+            itemView.setOnClickListener(v -> listener.onUserClick(user));
         }
     }
 }
