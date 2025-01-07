@@ -14,7 +14,7 @@ import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
 
 public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder> {
-    private final List<User> userList;
+    private List<User> userList;
     private final Map<String, Boolean> presenceMap;
     private final OnUserClickListener listener;
 
@@ -26,6 +26,11 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         this.userList = userList;
         this.presenceMap = presenceMap;
         this.listener = listener;
+    }
+
+    public void updateList(List<User> newList) {
+        this.userList = newList;
+        notifyDataSetChanged();
     }
 
     @NonNull
