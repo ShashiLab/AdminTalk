@@ -8,6 +8,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
+import app.shashi.AdminTalk.utils.AuthHelper;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
 import app.shashi.AdminTalk.services.MessageNotificationService;
@@ -145,10 +146,13 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void startChatActivity() {
-        Intent intent = FirebaseHelper.isAdmin() ?
-                new Intent(this, UserListActivity.class) :
-                new Intent(this, ChatActivity.class);
-        startActivity(intent);
-        finish();
+        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+            boolean isAdmin = task.isSuccessful() && task.getResult();
+            Intent intent = isAdmin ?
+                    new Intent(this, UserListActivity.class) :
+                    new Intent(this, ChatActivity.class);
+            startActivity(intent);
+            finish();
+        });
     }
 }
