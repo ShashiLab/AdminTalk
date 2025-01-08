@@ -1,45 +1,62 @@
 package app.shashi.AdminTalk.services;
 
+import android.app.Notification;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.Message;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
 import app.shashi.AdminTalk.utils.NotificationHelper;
-import com.google.firebase.database.ChildEventListener;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import android.app.Notification;
-import android.app.PendingIntent;
-import androidx.core.app.NotificationCompat;
-import app.shashi.AdminTalk.R;
-import app.shashi.AdminTalk.activities.ChatActivity;
-
+import app.shashi.AdminTalk.utils.AuthHelper;
+import com.google.firebase.database.*;
 
 public class MessageNotificationService extends Service {
     private DatabaseReference databaseRef;
     private ChildEventListener messagesListener;
-    private boolean isAdmin;
     private String currentUserId;
     private static final int FOREGROUND_SERVICE_ID = 1001;
-
+    private boolean isServiceInitialized = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
         currentUserId = FirebaseHelper.getCurrentUserUid();
-        isAdmin = FirebaseHelper.isAdmin();
         startForeground(FOREGROUND_SERVICE_ID, createForegroundNotification());
-        setupMessageListener();
+
+        
+        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                boolean isAdmin = task.getResult();
+                initializeService(isAdmin);
+            }
+        });
+    }
+
+    private void initializeService(boolean isAdmin) {
+        if (isServiceInitialized) {
+            return;
+        }
+
+        isServiceInitialized = true;
+        if (isAdmin) {
+            databaseRef = FirebaseDatabase.getInstance().getReference(Constants.CHATS_REF);
+            listenToAllChats();
+        } else {
+            databaseRef = FirebaseHelper.getChatReference(currentUserId)
+                    .child(Constants.MESSAGES_REF);
+            listenToUserChat();
+        }
     }
 
     private Notification createForegroundNotification() {
         return new NotificationCompat.Builder(this, NotificationHelper.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("Chat Service")
+                .setContentText("Listening for new messages")
                 .setPriority(NotificationCompat.PRIORITY_MIN)
                 .setNotificationSilent()
                 .build();
@@ -47,29 +64,15 @@ public class MessageNotificationService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        
         return START_STICKY;
-    }
-    private void setupMessageListener() {
-        if (isAdmin) {
-            
-            databaseRef = FirebaseDatabase.getInstance().getReference(Constants.CHATS_REF);
-            listenToAllChats();
-        } else {
-            
-            databaseRef = FirebaseHelper.getChatReference(currentUserId)
-                    .child(Constants.MESSAGES_REF);
-            listenToUserChat();
-        }
     }
 
     private void listenToAllChats() {
         databaseRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot chatSnapshot, String previousChildName) {
-                
                 String userId = chatSnapshot.getKey();
-                if (!userId.equals(Constants.ADMIN_UID)) {
+                if (userId != null && !userId.equals(currentUserId)) {
                     DatabaseReference messagesRef = chatSnapshot.getRef()
                             .child(Constants.MESSAGES_REF);
                     listenToMessages(messagesRef, userId);
@@ -79,7 +82,14 @@ public class MessageNotificationService extends Service {
             @Override
             public void onChildChanged(DataSnapshot snapshot, String previousChildName) {}
             @Override
-            public void onChildRemoved(DataSnapshot snapshot) {}
+            public void onChildRemoved(DataSnapshot snapshot) {
+                
+                if (snapshot.getKey() != null) {
+                    DatabaseReference messagesRef = snapshot.getRef()
+                            .child(Constants.MESSAGES_REF);
+                    messagesRef.removeEventListener(messagesListener);
+                }
+            }
             @Override
             public void onChildMoved(DataSnapshot snapshot, String previousChildName) {}
             @Override
@@ -110,7 +120,7 @@ public class MessageNotificationService extends Service {
     }
 
     private void listenToMessages(DatabaseReference messagesRef, String userId) {
-        messagesRef.addChildEventListener(new ChildEventListener() {
+        ChildEventListener chatMessagesListener = new ChildEventListener() {
             @Override
             public void onChildAdded(DataSnapshot snapshot, String previousChildName) {
                 Message message = snapshot.getValue(Message.class);
@@ -127,7 +137,8 @@ public class MessageNotificationService extends Service {
             public void onChildMoved(DataSnapshot snapshot, String previousChildName) {}
             @Override
             public void onCancelled(DatabaseError error) {}
-        });
+        };
+        messagesRef.addChildEventListener(chatMessagesListener);
     }
 
     private void showNotification(Message message) {
@@ -150,8 +161,9 @@ public class MessageNotificationService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (messagesListener != null) {
+        if (messagesListener != null && databaseRef != null) {
             databaseRef.removeEventListener(messagesListener);
         }
+        AuthHelper.clearCache();
     }
 }

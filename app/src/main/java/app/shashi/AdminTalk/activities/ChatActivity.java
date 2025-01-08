@@ -23,6 +23,7 @@ import app.shashi.AdminTalk.adapters.MessageAdapter;
 import app.shashi.AdminTalk.models.Message;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
+import app.shashi.AdminTalk.utils.AuthHelper;
 
 public class ChatActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
@@ -33,7 +34,7 @@ public class ChatActivity extends AppCompatActivity {
     private TextView chatTitle;
     private TextView userStatusView;
     private String lastChatUserId;
-    private boolean isAdmin;
+    private boolean isAdmin = false;
     private ValueEventListener messagesListener;
     private ValueEventListener statusListener;
     private DatabaseReference userPresenceRef;
@@ -55,7 +56,17 @@ public class ChatActivity extends AppCompatActivity {
         lastChatUserId = selectedUserId;
 
         initializeViews(currentUser.getUid(), selectedUserName);
-        initializeChat(currentUser.getUid(), selectedUserId);
+
+        
+        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                isAdmin = task.getResult();
+                initializeChat(currentUser.getUid(), selectedUserId);
+            } else {
+                Toast.makeText(this, "Failed to verify permissions", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        });
     }
 
     private void initializeViews(String currentUserId, String selectedUserName) {
@@ -89,17 +100,50 @@ public class ChatActivity extends AppCompatActivity {
         sendButton = findViewById(R.id.send_button);
         sendButton.setOnClickListener(v -> sendMessage());
     }
-
     private void initializeChat(String currentUserId, String selectedUserId) {
-        isAdmin = FirebaseHelper.isAdmin();
         String chatUserId = isAdmin ? selectedUserId : currentUserId;
 
         if (chatUserId != null) {
             messagesListener = createMessageListener();
             FirebaseHelper.getUserChats(chatUserId).addValueEventListener(messagesListener);
 
-            setupPresence(currentUserId, isAdmin ? selectedUserId : Constants.ADMIN_UID);
+            
+            if (!isAdmin) {
+                findAdminUser(adminUserId -> {
+                    if (adminUserId != null) {
+                        setupPresence(currentUserId, adminUserId);
+                    }
+                });
+            } else {
+                setupPresence(currentUserId, selectedUserId);
+            }
         }
+    }
+
+    private void findAdminUser(OnAdminUserFoundListener listener) {
+        DatabaseReference usersRef = FirebaseDatabase.getInstance().getReference(Constants.USERS_REF);
+        usersRef.orderByChild("admin").equalTo(true).limitToFirst(1)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            for (DataSnapshot userSnapshot : snapshot.getChildren()) {
+                                listener.onAdminFound(userSnapshot.getKey());
+                                return;
+                            }
+                        }
+                        listener.onAdminFound(null);
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        listener.onAdminFound(null);
+                    }
+                });
+    }
+
+    interface OnAdminUserFoundListener {
+        void onAdminFound(String adminUserId);
     }
 
     private void setupPresence(String currentUserId, String otherUserId) {
@@ -137,7 +181,6 @@ public class ChatActivity extends AppCompatActivity {
         };
         otherUserPresenceRef.addValueEventListener(statusListener);
     }
-
     private ValueEventListener createMessageListener() {
         return new ValueEventListener() {
             @Override
@@ -270,12 +313,11 @@ public class ChatActivity extends AppCompatActivity {
                     .removeEventListener(statusListener);
         }
         if (messagesListener != null) {
-            FirebaseHelper.getUserChats(isAdmin ? lastChatUserId :
-                            FirebaseAuth.getInstance().getCurrentUser().getUid())
-                    .removeEventListener(messagesListener);
+            String userId = isAdmin ? lastChatUserId :
+                    FirebaseAuth.getInstance().getCurrentUser().getUid();
+            FirebaseHelper.getUserChats(userId).removeEventListener(messagesListener);
         }
         if (userPresenceRef != null) {
             userPresenceRef.setValue(false);
         }
-    }
-}
+    }}

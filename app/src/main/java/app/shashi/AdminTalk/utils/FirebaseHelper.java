@@ -18,9 +18,8 @@ public class FirebaseHelper {
     }
 
     public static boolean isAdmin() {
-        return getCurrentUserUid().equals(Constants.ADMIN_UID);
+        return false;
     }
-
     public static DatabaseReference getChatReference(String userId) {
         return database.child(Constants.CHATS_REF)
                 .child(userId);

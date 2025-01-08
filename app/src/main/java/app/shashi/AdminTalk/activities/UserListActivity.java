@@ -13,6 +13,7 @@ import com.google.firebase.database.*;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.adapters.UserAdapter;
 import app.shashi.AdminTalk.models.User;
+import app.shashi.AdminTalk.utils.AuthHelper;
 import app.shashi.AdminTalk.utils.Constants;
 
 import java.util.ArrayList;
@@ -120,6 +121,7 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                 .addValueEventListener(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        
                         for (ValueEventListener listener : presenceListeners.values()) {
                             FirebaseDatabase.getInstance().getReference("presence")
                                     .removeEventListener(listener);
@@ -127,15 +129,21 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                         presenceListeners.clear();
 
                         userList.clear();
-                        for (DataSnapshot userSnapshot : snapshot.getChildren()) {
-                            User user = userSnapshot.getValue(User.class);
-                            if (user != null && !user.getId().equals(Constants.ADMIN_UID)) {
-                                userList.add(user);
-                                setupPresenceListener(user.getId());
-                            }
-                        }
+                        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+                            boolean isAdmin = task.isSuccessful() && task.getResult();
 
-                        filterUsers(searchView.getQuery().toString());
+                            for (DataSnapshot userSnapshot : snapshot.getChildren()) {
+                                User user = userSnapshot.getValue(User.class);
+                                if (user != null) {
+                                    
+                                    if (!isAdmin || !userSnapshot.child("admin").exists()) {
+                                        userList.add(user);
+                                        setupPresenceListener(user.getId());
+                                    }
+                                }
+                            }
+                            filterUsers(searchView.getQuery().toString());
+                        });
                     }
 
                     @Override
@@ -143,7 +151,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                     }
                 });
     }
-
     private void setupPresenceListener(String userId) {
         DatabaseReference presenceRef = FirebaseDatabase.getInstance()
                 .getReference("presence").child(userId);
