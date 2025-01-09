@@ -21,19 +21,26 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
     private final Map<String, UserPresenceInfo> presenceMap;
     private final Map<String, MessagePreview> messagePreviewMap;
     private final OnUserClickListener listener;
+    private final OnProfileClickListener profileListener;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
     }
 
+    public interface OnProfileClickListener {
+        void onProfileClick(User user);
+    }
+
     public UserAdapter(List<User> userList,
                        Map<String, UserPresenceInfo> presenceMap,
                        Map<String, MessagePreview> messagePreviewMap,
-                       OnUserClickListener listener) {
+                       OnUserClickListener listener,
+                       OnProfileClickListener profileListener) {
         this.userList = userList;
         this.presenceMap = presenceMap;
         this.messagePreviewMap = messagePreviewMap;
         this.listener = listener;
+        this.profileListener = profileListener;
     }
 
     public void updateList(List<User> newList) {
@@ -54,7 +61,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         User user = userList.get(position);
         UserPresenceInfo presenceInfo = presenceMap.get(user.getId());
         MessagePreview messagePreview = messagePreviewMap.get(user.getId());
-        holder.bind(user, presenceInfo, messagePreview, listener);
+        holder.bind(user, presenceInfo, messagePreview, listener, profileListener);
     }
 
     @Override
@@ -65,7 +72,6 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
     public static class UserViewHolder extends RecyclerView.ViewHolder {
         private final ShapeableImageView profileImage;
         private final TextView nameText;
-        private final TextView emailText;
         private final View statusIndicator;
         private final TextView lastSeenText;
         private final TextView lastMessageText;
@@ -74,7 +80,6 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
             super(itemView);
             profileImage = itemView.findViewById(R.id.image_profile);
             nameText = itemView.findViewById(R.id.text_name);
-            emailText = itemView.findViewById(R.id.text_email);
             statusIndicator = itemView.findViewById(R.id.status_indicator);
             lastSeenText = itemView.findViewById(R.id.text_last_seen);
             lastMessageText = itemView.findViewById(R.id.text_last_message);
@@ -83,18 +88,20 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         public void bind(final User user,
                          UserPresenceInfo presenceInfo,
                          MessagePreview messagePreview,
-                         final OnUserClickListener listener) {
+                         final OnUserClickListener listener,
+                         final OnProfileClickListener profileListener) {
             nameText.setText(user.getName());
-            emailText.setText(user.getEmail());
 
             
             boolean isOnline = presenceInfo != null && presenceInfo.isOnline;
             long lastSeen = presenceInfo != null ? presenceInfo.lastSeen : 0;
 
+            
             statusIndicator.setBackgroundResource(
                     isOnline ? R.drawable.status_online : R.drawable.status_offline
             );
 
+            
             if (isOnline) {
                 lastSeenText.setText("Online");
                 lastSeenText.setTextColor(itemView.getContext().getColor(R.color.online_color));
@@ -113,7 +120,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
             }
 
             
-            if (messagePreview != null) {
+            if (messagePreview != null && messagePreview.lastMessage != null) {
                 lastMessageText.setVisibility(View.VISIBLE);
                 lastMessageText.setText(messagePreview.lastMessage);
             } else {
@@ -121,14 +128,29 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
             }
 
             
-            Glide.with(itemView.getContext())
-                    .load(user.getPhotoUrl())
-                    .placeholder(R.drawable.ic_profile_placeholder)
-                    .error(R.drawable.ic_profile_placeholder)
-                    .circleCrop()
-                    .into(profileImage);
+            if (user.getPhotoUrl() != null && !user.getPhotoUrl().isEmpty()) {
+                Glide.with(itemView.getContext())
+                        .load(user.getPhotoUrl())
+                        .placeholder(R.drawable.ic_profile_placeholder)
+                        .error(R.drawable.ic_profile_placeholder)
+                        .circleCrop()
+                        .into(profileImage);
+            } else {
+                profileImage.setImageResource(R.drawable.ic_profile_placeholder);
+            }
 
-            itemView.setOnClickListener(v -> listener.onUserClick(user));
+            
+            itemView.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onUserClick(user);
+                }
+            });
+
+            profileImage.setOnClickListener(v -> {
+                if (profileListener != null) {
+                    profileListener.onProfileClick(user);
+                }
+            });
         }
     }
 }

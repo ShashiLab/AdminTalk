@@ -26,7 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class UserListActivity extends AppCompatActivity implements UserAdapter.OnUserClickListener {
+public class UserListActivity extends AppCompatActivity implements
+        UserAdapter.OnUserClickListener,
+        UserAdapter.OnProfileClickListener {
+
     private RecyclerView recyclerView;
     private UserAdapter userAdapter;
     private List<User> userList;
@@ -65,23 +68,20 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         setContentView(R.layout.activity_user_list);
 
         currentUserId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        initializeLists();
+        initializeViews();
+        setupSearchView();
+        setupRecyclerView();
+        checkAdminStatus();
+    }
+
+    private void initializeLists() {
         userList = new ArrayList<>();
         filteredList = new ArrayList<>();
         presenceListeners = new HashMap<>();
         messageListeners = new HashMap<>();
         userPresenceStatus = new HashMap<>();
         messagePreviews = new HashMap<>();
-
-        initializeViews();
-        setupSearchView();
-        setupRecyclerView();
-
-        AuthHelper.isAdmin().addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                isAdmin = task.getResult();
-                loadUsers();
-            }
-        });
     }
 
     private void initializeViews() {
@@ -108,7 +108,7 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
 
     private void setupRecyclerView() {
         recyclerView = findViewById(R.id.recycler_view);
-        userAdapter = new UserAdapter(filteredList, userPresenceStatus, messagePreviews, this);
+        userAdapter = new UserAdapter(filteredList, userPresenceStatus, messagePreviews, this, this);
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         recyclerView.setLayoutManager(layoutManager);
@@ -122,6 +122,15 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         recyclerView.addItemDecoration(divider);
     }
 
+    private void checkAdminStatus() {
+        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                isAdmin = task.getResult();
+                loadUsers();
+            }
+        });
+    }
+
     private void filterUsers(String query) {
         filteredList.clear();
         if (query.isEmpty()) {
@@ -129,8 +138,7 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         } else {
             String lowercaseQuery = query.toLowerCase().trim();
             for (User user : userList) {
-                if (user.getName().toLowerCase().contains(lowercaseQuery) ||
-                        user.getEmail().toLowerCase().contains(lowercaseQuery)) {
+                if (user.getName().toLowerCase().contains(lowercaseQuery)) {
                     filteredList.add(user);
                 }
             }
@@ -264,7 +272,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     }
 
     private void cleanupListeners() {
-        
         for (Map.Entry<String, ValueEventListener> entry : presenceListeners.entrySet()) {
             String chatId = isAdmin ? entry.getKey() : currentUserId;
             FirebaseHelper.getChatReference(chatId)
@@ -273,7 +280,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                     .removeEventListener(entry.getValue());
         }
 
-        
         for (Map.Entry<String, ValueEventListener> entry : messageListeners.entrySet()) {
             String chatId = isAdmin ? entry.getKey() : currentUserId;
             FirebaseHelper.getChatReference(chatId)
@@ -290,6 +296,14 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     @Override
     public void onUserClick(User user) {
         Intent intent = new Intent(this, ChatActivity.class);
+        intent.putExtra(Constants.EXTRA_USER_ID, user.getId());
+        intent.putExtra(Constants.EXTRA_USER_NAME, user.getName());
+        startActivity(intent);
+    }
+
+    @Override
+    public void onProfileClick(User user) {
+        Intent intent = new Intent(this, AboutUser.class);
         intent.putExtra(Constants.EXTRA_USER_ID, user.getId());
         intent.putExtra(Constants.EXTRA_USER_NAME, user.getName());
         startActivity(intent);
