@@ -12,17 +12,19 @@ import java.util.List;
 import java.util.Map;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
+import app.shashi.AdminTalk.activities.UserListActivity.UserPresenceInfo;
+import android.text.format.DateUtils;
 
 public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder> {
     private List<User> userList;
-    private final Map<String, Boolean> presenceMap;
+    private final Map<String, UserPresenceInfo> presenceMap;
     private final OnUserClickListener listener;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
     }
 
-    public UserAdapter(List<User> userList, Map<String, Boolean> presenceMap, OnUserClickListener listener) {
+    public UserAdapter(List<User> userList, Map<String, UserPresenceInfo> presenceMap, OnUserClickListener listener) {
         this.userList = userList;
         this.presenceMap = presenceMap;
         this.listener = listener;
@@ -44,8 +46,8 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
     @Override
     public void onBindViewHolder(@NonNull UserViewHolder holder, int position) {
         User user = userList.get(position);
-        Boolean isOnline = presenceMap.get(user.getId());
-        holder.bind(user, isOnline != null && isOnline, listener);
+        UserPresenceInfo presenceInfo = presenceMap.get(user.getId());
+        holder.bind(user, presenceInfo, listener);
     }
 
     @Override
@@ -58,6 +60,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         private final TextView nameText;
         private final TextView emailText;
         private final View statusIndicator;
+        private final TextView lastSeenText;
 
         public UserViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -65,15 +68,36 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
             nameText = itemView.findViewById(R.id.text_name);
             emailText = itemView.findViewById(R.id.text_email);
             statusIndicator = itemView.findViewById(R.id.status_indicator);
+            lastSeenText = itemView.findViewById(R.id.text_last_seen);
         }
 
-        public void bind(final User user, boolean isOnline, final OnUserClickListener listener) {
+        public void bind(final User user, UserPresenceInfo presenceInfo, final OnUserClickListener listener) {
             nameText.setText(user.getName());
             emailText.setText(user.getEmail());
+
+            boolean isOnline = presenceInfo != null && presenceInfo.isOnline;
+            long lastSeen = presenceInfo != null ? presenceInfo.lastSeen : 0;
 
             statusIndicator.setBackgroundResource(
                     isOnline ? R.drawable.status_online : R.drawable.status_offline
             );
+
+            if (isOnline) {
+                lastSeenText.setText("Online");
+                lastSeenText.setTextColor(itemView.getContext().getColor(R.color.online_color));
+            } else if (lastSeen > 0) {
+                String timeAgo = DateUtils.getRelativeTimeSpanString(
+                        lastSeen,
+                        System.currentTimeMillis(),
+                        DateUtils.MINUTE_IN_MILLIS,
+                        DateUtils.FORMAT_ABBREV_RELATIVE
+                ).toString();
+                lastSeenText.setText("Last seen " + timeAgo);
+                lastSeenText.setTextColor(itemView.getContext().getColor(R.color.offline_color));
+            } else {
+                lastSeenText.setText("Offline");
+                lastSeenText.setTextColor(itemView.getContext().getColor(R.color.offline_color));
+            }
 
             Glide.with(itemView.getContext())
                     .load(user.getPhotoUrl())
