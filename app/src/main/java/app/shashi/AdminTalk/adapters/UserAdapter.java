@@ -13,20 +13,26 @@ import java.util.Map;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.models.User;
 import app.shashi.AdminTalk.activities.UserListActivity.UserPresenceInfo;
+import app.shashi.AdminTalk.activities.UserListActivity.MessagePreview;
 import android.text.format.DateUtils;
 
 public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder> {
     private List<User> userList;
     private final Map<String, UserPresenceInfo> presenceMap;
+    private final Map<String, MessagePreview> messagePreviewMap;
     private final OnUserClickListener listener;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
     }
 
-    public UserAdapter(List<User> userList, Map<String, UserPresenceInfo> presenceMap, OnUserClickListener listener) {
+    public UserAdapter(List<User> userList,
+                       Map<String, UserPresenceInfo> presenceMap,
+                       Map<String, MessagePreview> messagePreviewMap,
+                       OnUserClickListener listener) {
         this.userList = userList;
         this.presenceMap = presenceMap;
+        this.messagePreviewMap = messagePreviewMap;
         this.listener = listener;
     }
 
@@ -47,7 +53,8 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
     public void onBindViewHolder(@NonNull UserViewHolder holder, int position) {
         User user = userList.get(position);
         UserPresenceInfo presenceInfo = presenceMap.get(user.getId());
-        holder.bind(user, presenceInfo, listener);
+        MessagePreview messagePreview = messagePreviewMap.get(user.getId());
+        holder.bind(user, presenceInfo, messagePreview, listener);
     }
 
     @Override
@@ -61,6 +68,7 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         private final TextView emailText;
         private final View statusIndicator;
         private final TextView lastSeenText;
+        private final TextView lastMessageText;
 
         public UserViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -69,12 +77,17 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
             emailText = itemView.findViewById(R.id.text_email);
             statusIndicator = itemView.findViewById(R.id.status_indicator);
             lastSeenText = itemView.findViewById(R.id.text_last_seen);
+            lastMessageText = itemView.findViewById(R.id.text_last_message);
         }
 
-        public void bind(final User user, UserPresenceInfo presenceInfo, final OnUserClickListener listener) {
+        public void bind(final User user,
+                         UserPresenceInfo presenceInfo,
+                         MessagePreview messagePreview,
+                         final OnUserClickListener listener) {
             nameText.setText(user.getName());
             emailText.setText(user.getEmail());
 
+            
             boolean isOnline = presenceInfo != null && presenceInfo.isOnline;
             long lastSeen = presenceInfo != null ? presenceInfo.lastSeen : 0;
 
@@ -99,6 +112,15 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
                 lastSeenText.setTextColor(itemView.getContext().getColor(R.color.offline_color));
             }
 
+            
+            if (messagePreview != null) {
+                lastMessageText.setVisibility(View.VISIBLE);
+                lastMessageText.setText(messagePreview.lastMessage);
+            } else {
+                lastMessageText.setVisibility(View.GONE);
+            }
+
+            
             Glide.with(itemView.getContext())
                     .load(user.getPhotoUrl())
                     .placeholder(R.drawable.ic_profile_placeholder)

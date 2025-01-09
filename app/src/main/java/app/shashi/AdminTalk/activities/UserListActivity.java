@@ -14,6 +14,7 @@ import com.google.firebase.database.*;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.adapters.UserAdapter;
 import app.shashi.AdminTalk.models.User;
+import app.shashi.AdminTalk.models.Message;
 import app.shashi.AdminTalk.utils.AuthHelper;
 import app.shashi.AdminTalk.utils.Constants;
 import app.shashi.AdminTalk.utils.FirebaseHelper;
@@ -31,7 +32,9 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     private List<User> userList;
     private List<User> filteredList;
     private Map<String, ValueEventListener> presenceListeners;
+    private Map<String, ValueEventListener> messageListeners;
     private Map<String, UserPresenceInfo> userPresenceStatus;
+    private Map<String, MessagePreview> messagePreviews;
     private SearchView searchView;
     private String currentUserId;
     private boolean isAdmin = false;
@@ -46,6 +49,16 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         }
     }
 
+    public static class MessagePreview {
+        public String lastMessage;
+        public long timestamp;
+
+        MessagePreview(String lastMessage, long timestamp) {
+            this.lastMessage = lastMessage;
+            this.timestamp = timestamp;
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -55,7 +68,9 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         userList = new ArrayList<>();
         filteredList = new ArrayList<>();
         presenceListeners = new HashMap<>();
+        messageListeners = new HashMap<>();
         userPresenceStatus = new HashMap<>();
+        messagePreviews = new HashMap<>();
 
         initializeViews();
         setupSearchView();
@@ -91,6 +106,22 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         });
     }
 
+    private void setupRecyclerView() {
+        recyclerView = findViewById(R.id.recycler_view);
+        userAdapter = new UserAdapter(filteredList, userPresenceStatus, messagePreviews, this);
+
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        recyclerView.setLayoutManager(layoutManager);
+        recyclerView.setAdapter(userAdapter);
+
+        MaterialDividerItemDecoration divider = new MaterialDividerItemDecoration(
+                this,
+                LinearLayoutManager.VERTICAL
+        );
+        divider.setLastItemDecorated(false);
+        recyclerView.addItemDecoration(divider);
+    }
+
     private void filterUsers(String query) {
         filteredList.clear();
         if (query.isEmpty()) {
@@ -108,27 +139,24 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         userAdapter.updateList(filteredList);
     }
 
-    private void setupRecyclerView() {
-        recyclerView = findViewById(R.id.recycler_view);
-        userAdapter = new UserAdapter(filteredList, userPresenceStatus, this);
-
-        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
-        recyclerView.setLayoutManager(layoutManager);
-        recyclerView.setAdapter(userAdapter);
-
-        MaterialDividerItemDecoration divider = new MaterialDividerItemDecoration(
-                this,
-                LinearLayoutManager.VERTICAL
-        );
-        divider.setLastItemDecorated(false);
-        recyclerView.addItemDecoration(divider);
-    }
-
     private void sortUsers(List<User> users) {
         Collections.sort(users, (user1, user2) -> {
+            MessagePreview preview1 = messagePreviews.get(user1.getId());
+            MessagePreview preview2 = messagePreviews.get(user2.getId());
+
+            
+            if (preview1 != null && preview2 != null) {
+                int timeCompare = Long.compare(preview2.timestamp, preview1.timestamp);
+                if (timeCompare != 0) return timeCompare;
+            } else if (preview1 != null) {
+                return -1;
+            } else if (preview2 != null) {
+                return 1;
+            }
+
+            
             UserPresenceInfo status1 = userPresenceStatus.get(user1.getId());
             UserPresenceInfo status2 = userPresenceStatus.get(user2.getId());
-
             boolean isOnline1 = status1 != null && status1.isOnline;
             boolean isOnline2 = status2 != null && status2.isOnline;
 
@@ -137,10 +165,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
             }
 
             
-            if (!isOnline1 && !isOnline2 && status1 != null && status2 != null) {
-                return Long.compare(status2.lastSeen, status1.lastSeen);
-            }
-
             return user1.getName().compareTo(user2.getName());
         });
     }
@@ -150,19 +174,17 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                 .addValueEventListener(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        
-                        cleanupPresenceListeners();
+                        cleanupListeners();
                         userList.clear();
 
                         for (DataSnapshot userSnapshot : snapshot.getChildren()) {
                             User user = userSnapshot.getValue(User.class);
                             if (user != null && !user.getId().equals(currentUserId)) {
-                                
-                                
                                 boolean isUserAdmin = userSnapshot.child("admin").exists();
                                 if ((isAdmin && !isUserAdmin) || (!isAdmin && isUserAdmin)) {
                                     userList.add(user);
                                     setupPresenceListener(user.getId());
+                                    setupMessageListener(user.getId());
                                 }
                             }
                         }
@@ -170,10 +192,45 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                     }
 
                     @Override
-                    public void onCancelled(@NonNull DatabaseError error) {
-                        
-                    }
+                    public void onCancelled(@NonNull DatabaseError error) {}
                 });
+    }
+
+    private void setupMessageListener(String userId) {
+        String chatId = isAdmin ? userId : currentUserId;
+        DatabaseReference messagesRef = FirebaseHelper.getChatReference(chatId)
+                .child(Constants.MESSAGES_REF);
+
+        ValueEventListener messageListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Message lastMessage = null;
+                long lastTimestamp = 0;
+
+                for (DataSnapshot messageSnapshot : snapshot.getChildren()) {
+                    Message message = messageSnapshot.getValue(Message.class);
+                    if (message != null && message.getTimestamp() > lastTimestamp) {
+                        lastMessage = message;
+                        lastTimestamp = message.getTimestamp();
+                    }
+                }
+
+                if (lastMessage != null) {
+                    messagePreviews.put(userId, new MessagePreview(
+                            lastMessage.getText(),
+                            lastMessage.getTimestamp()
+                    ));
+                    sortUsers(filteredList);
+                    userAdapter.notifyDataSetChanged();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+
+        messageListeners.put(userId, messageListener);
+        messagesRef.addValueEventListener(messageListener);
     }
 
     private void setupPresenceListener(String userId) {
@@ -206,7 +263,8 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                 .addValueEventListener(presenceListener);
     }
 
-    private void cleanupPresenceListeners() {
+    private void cleanupListeners() {
+        
         for (Map.Entry<String, ValueEventListener> entry : presenceListeners.entrySet()) {
             String chatId = isAdmin ? entry.getKey() : currentUserId;
             FirebaseHelper.getChatReference(chatId)
@@ -214,8 +272,19 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                     .child(entry.getKey())
                     .removeEventListener(entry.getValue());
         }
+
+        
+        for (Map.Entry<String, ValueEventListener> entry : messageListeners.entrySet()) {
+            String chatId = isAdmin ? entry.getKey() : currentUserId;
+            FirebaseHelper.getChatReference(chatId)
+                    .child(Constants.MESSAGES_REF)
+                    .removeEventListener(entry.getValue());
+        }
+
         presenceListeners.clear();
+        messageListeners.clear();
         userPresenceStatus.clear();
+        messagePreviews.clear();
     }
 
     @Override
@@ -230,7 +299,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     protected void onResume() {
         super.onResume();
         if (currentUserId != null) {
-            
             for (User user : userList) {
                 String chatId = isAdmin ? user.getId() : currentUserId;
                 PresenceHelper.updatePresence(chatId, currentUserId, true);
@@ -242,7 +310,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     protected void onPause() {
         super.onPause();
         if (currentUserId != null) {
-            
             for (User user : userList) {
                 String chatId = isAdmin ? user.getId() : currentUserId;
                 PresenceHelper.updatePresence(chatId, currentUserId, false);
@@ -253,6 +320,6 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        cleanupPresenceListeners();
+        cleanupListeners();
     }
 }
