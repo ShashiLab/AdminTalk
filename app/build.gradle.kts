@@ -34,6 +34,8 @@ android {
 
 dependencies {
 
+    implementation(libs.circleimageview)
+
     implementation(libs.glide)
     annotationProcessor(libs.compiler)
     implementation(libs.firebase.config)
