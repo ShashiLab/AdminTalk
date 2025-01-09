@@ -9,12 +9,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.divider.MaterialDividerItemDecoration;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.*;
 import app.shashi.AdminTalk.R;
 import app.shashi.AdminTalk.adapters.UserAdapter;
 import app.shashi.AdminTalk.models.User;
 import app.shashi.AdminTalk.utils.AuthHelper;
 import app.shashi.AdminTalk.utils.Constants;
+import app.shashi.AdminTalk.utils.FirebaseHelper;
+import app.shashi.AdminTalk.utils.PresenceHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,14 +31,27 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     private List<User> userList;
     private List<User> filteredList;
     private Map<String, ValueEventListener> presenceListeners;
-    private Map<String, Boolean> userPresenceStatus;
+    private Map<String, UserPresenceInfo> userPresenceStatus;
     private SearchView searchView;
+    private String currentUserId;
+    private boolean isAdmin = false;
+
+    public static class UserPresenceInfo {
+        public boolean isOnline;
+        public long lastSeen;
+
+        UserPresenceInfo(boolean isOnline, long lastSeen) {
+            this.isOnline = isOnline;
+            this.lastSeen = lastSeen;
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_list);
 
+        currentUserId = FirebaseAuth.getInstance().getCurrentUser().getUid();
         userList = new ArrayList<>();
         filteredList = new ArrayList<>();
         presenceListeners = new HashMap<>();
@@ -44,7 +60,13 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
         initializeViews();
         setupSearchView();
         setupRecyclerView();
-        loadUsers();
+
+        AuthHelper.isAdmin().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                isAdmin = task.getResult();
+                loadUsers();
+            }
+        });
     }
 
     private void initializeViews() {
@@ -104,14 +126,21 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
 
     private void sortUsers(List<User> users) {
         Collections.sort(users, (user1, user2) -> {
-            Boolean status1 = userPresenceStatus.get(user1.getId());
-            Boolean status2 = userPresenceStatus.get(user2.getId());
-            boolean isOnline1 = status1 != null && status1;
-            boolean isOnline2 = status2 != null && status2;
+            UserPresenceInfo status1 = userPresenceStatus.get(user1.getId());
+            UserPresenceInfo status2 = userPresenceStatus.get(user2.getId());
+
+            boolean isOnline1 = status1 != null && status1.isOnline;
+            boolean isOnline2 = status2 != null && status2.isOnline;
 
             if (isOnline1 != isOnline2) {
                 return isOnline1 ? -1 : 1;
             }
+
+            
+            if (!isOnline1 && !isOnline2 && status1 != null && status2 != null) {
+                return Long.compare(status2.lastSeen, status1.lastSeen);
+            }
+
             return user1.getName().compareTo(user2.getName());
         });
     }
@@ -122,57 +151,71 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
                         
-                        for (ValueEventListener listener : presenceListeners.values()) {
-                            FirebaseDatabase.getInstance().getReference("presence")
-                                    .removeEventListener(listener);
-                        }
-                        presenceListeners.clear();
-
+                        cleanupPresenceListeners();
                         userList.clear();
-                        AuthHelper.isAdmin().addOnCompleteListener(task -> {
-                            boolean isAdmin = task.isSuccessful() && task.getResult();
 
-                            for (DataSnapshot userSnapshot : snapshot.getChildren()) {
-                                User user = userSnapshot.getValue(User.class);
-                                if (user != null) {
-                                    
-                                    if (!isAdmin || !userSnapshot.child("admin").exists()) {
-                                        userList.add(user);
-                                        setupPresenceListener(user.getId());
-                                    }
+                        for (DataSnapshot userSnapshot : snapshot.getChildren()) {
+                            User user = userSnapshot.getValue(User.class);
+                            if (user != null && !user.getId().equals(currentUserId)) {
+                                
+                                
+                                boolean isUserAdmin = userSnapshot.child("admin").exists();
+                                if ((isAdmin && !isUserAdmin) || (!isAdmin && isUserAdmin)) {
+                                    userList.add(user);
+                                    setupPresenceListener(user.getId());
                                 }
                             }
-                            filterUsers(searchView.getQuery().toString());
-                        });
+                        }
+                        filterUsers(searchView.getQuery().toString());
                     }
 
                     @Override
                     public void onCancelled(@NonNull DatabaseError error) {
+                        
                     }
                 });
     }
-    private void setupPresenceListener(String userId) {
-        DatabaseReference presenceRef = FirebaseDatabase.getInstance()
-                .getReference("presence").child(userId);
 
+    private void setupPresenceListener(String userId) {
+        String chatId = isAdmin ? userId : currentUserId;
         ValueEventListener presenceListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                Boolean isOnline = snapshot.getValue(Boolean.class);
-                userPresenceStatus.put(userId, isOnline != null && isOnline);
+                if (snapshot.exists()) {
+                    boolean isOnline = snapshot.child("online").getValue(Boolean.class);
+                    long lastSeen = snapshot.child("lastSeen").getValue(Long.class);
+                    userPresenceStatus.put(userId, new UserPresenceInfo(isOnline, lastSeen));
+                } else {
+                    userPresenceStatus.put(userId, new UserPresenceInfo(false, 0));
+                }
                 sortUsers(filteredList);
                 userAdapter.notifyDataSetChanged();
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                userPresenceStatus.put(userId, false);
+                userPresenceStatus.put(userId, new UserPresenceInfo(false, 0));
                 userAdapter.notifyDataSetChanged();
             }
         };
 
         presenceListeners.put(userId, presenceListener);
-        presenceRef.addValueEventListener(presenceListener);
+        FirebaseHelper.getChatReference(chatId)
+                .child("presence")
+                .child(userId)
+                .addValueEventListener(presenceListener);
+    }
+
+    private void cleanupPresenceListeners() {
+        for (Map.Entry<String, ValueEventListener> entry : presenceListeners.entrySet()) {
+            String chatId = isAdmin ? entry.getKey() : currentUserId;
+            FirebaseHelper.getChatReference(chatId)
+                    .child("presence")
+                    .child(entry.getKey())
+                    .removeEventListener(entry.getValue());
+        }
+        presenceListeners.clear();
+        userPresenceStatus.clear();
     }
 
     @Override
@@ -184,13 +227,32 @@ public class UserListActivity extends AppCompatActivity implements UserAdapter.O
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (currentUserId != null) {
+            
+            for (User user : userList) {
+                String chatId = isAdmin ? user.getId() : currentUserId;
+                PresenceHelper.updatePresence(chatId, currentUserId, true);
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (currentUserId != null) {
+            
+            for (User user : userList) {
+                String chatId = isAdmin ? user.getId() : currentUserId;
+                PresenceHelper.updatePresence(chatId, currentUserId, false);
+            }
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        for (Map.Entry<String, ValueEventListener> entry : presenceListeners.entrySet()) {
-            FirebaseDatabase.getInstance().getReference("presence")
-                    .child(entry.getKey())
-                    .removeEventListener(entry.getValue());
-        }
-        presenceListeners.clear();
+        cleanupPresenceListeners();
     }
 }
